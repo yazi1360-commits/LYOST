@@ -1,4 +1,3 @@
-// app/api/auth/callback/epic/route.ts
 import { NextRequest, NextResponse } from "next/server";
 import { supabaseAdmin } from "@/app/lib/supabaseAdmin";
 
@@ -6,7 +5,7 @@ export async function GET(req: NextRequest) {
   try {
     const url = new URL(req.url);
     const code = url.searchParams.get("code");
-    const stateParam = url.searchParams.get("state"); // optionnel
+    const stateParam = url.searchParams.get("state");
 
     if (!code) {
       return NextResponse.json({ error: "No code received" }, { status: 400 });
@@ -24,7 +23,7 @@ export async function GET(req: NextRequest) {
       );
     }
 
-    // ✅ 1) Exchange code -> token (IMPORTANT: epicgames.dev)
+    // 1) Exchange code -> token
     const basic = Buffer.from(`${clientId}:${clientSecret}`).toString("base64");
 
     const tokenRes = await fetch("https://api.epicgames.dev/epic/oauth/v2/token", {
@@ -42,6 +41,7 @@ export async function GET(req: NextRequest) {
 
     const tokenText = await tokenRes.text();
     let tokenData: any = null;
+
     try {
       tokenData = JSON.parse(tokenText);
     } catch {
@@ -65,32 +65,23 @@ export async function GET(req: NextRequest) {
       );
     }
 
-    // ✅ 2) Get basic profile from Epic (displayName)
-    let displayName: string | null = null;
+    // 2) Get basic profile (displayName)
+    let displayName: string = "Epic Player";
     let avatarUrl: string | null = null;
 
-    // (API Account publique Epic)
     const meRes = await fetch(
       `https://api.epicgames.dev/epic/id/v2/accounts/${encodeURIComponent(epicAccountId)}`,
       {
-        headers: {
-          Authorization: `Bearer ${accessToken}`,
-        },
+        headers: { Authorization: `Bearer ${accessToken}` },
       }
     );
 
     if (meRes.ok) {
       const me = await meRes.json();
-      displayName = me?.displayName ?? null;
-      // avatarUrl pas toujours dispo ici (souvent null)
-    } else {
-      // si l’appel profile échoue, on met une valeur par défaut pour éviter NOT NULL
-      displayName = "Epic Player";
+      displayName = me?.displayName ?? "Epic Player";
     }
 
-    if (!displayName) displayName = "Epic Player";
-
-    // ✅ 3) Upsert Supabase (table: profiles)
+    // 3) Upsert Supabase (profiles)
     const { error: upsertError } = await supabaseAdmin
       .from("profiles")
       .upsert(
@@ -110,10 +101,9 @@ export async function GET(req: NextRequest) {
       );
     }
 
-    // ✅ 4) Redirect (par défaut tournaments)
+    // 4) Redirect
     let returnTo = "/tournaments";
 
-    // optionnel: si tu veux passer un returnTo dans state
     if (stateParam) {
       try {
         const decoded = JSON.parse(
